@@ -43,3 +43,13 @@ output "valkey_status" {
   description = "Current Valkey database status"
   value       = ovh_cloud_project_database.this.status
 }
+
+############################################
+# Users
+############################################
+
+output "valkey_users" {
+  description = "Created Valkey users"
+  value       = ovh_cloud_project_database_valkey_user.user
+  sensitive   = true
+}

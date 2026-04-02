@@ -1,122 +1,48 @@
-# OVHcloud Valkey Terraform Module
+# terraform-ovh-valkey
 
-🧠 Design decisions
+> Terraform module to create and manage a **Valkey** (Redis-compatible) database on OVHcloud Public Cloud.
 
-This module is OVHcloud-focused and intentionally opinionated
+## Design decisions
 
-The module is Valkey-only (Redis-compatible) to avoid unsafe generic database abstractions
+- OVHcloud-focused and intentionally opinionated
+- Valkey-only to avoid unsafe generic database abstractions
+- Network creation is out of scope — must be handled by a dedicated network module
+- Designed to be orchestrated by higher-level tools such as Ansible
 
-Network creation is explicitly out of scope and must be handled by a dedicated network module
+## Usage
 
-The module is designed to be orchestrated by higher-level tools such as Ansible
-
----
-
-## 🇬🇧 Description
-
-Terraform module to create and manage a **Valkey (Redis-compatible) database** on OVHcloud Public Cloud.
-
-This module focuses exclusively on Valkey use cases and enforces clear boundaries to prevent misconfiguration, while remaining simple, predictable, and production-ready.
-
----
-
-## 🇬🇧 Features
-
-- Creation of a Valkey database on OVHcloud Public Cloud  
-- Support for two or multiple Valkey nodes (HA-ready)  
-- Attachment of Valkey nodes to an existing private network and subnet  
-- Optional IP access restrictions  
-- Optional backup configuration  
-- Optional advanced Valkey (Redis-compatible) configuration  
-- Safe usage of `dynamic` blocks for repeatable resources  
-- Designed to be orchestrated by Ansible  
-
----
-
-## 🇬🇧 Requirements
-
-- Terraform >= 1.14
-- OVHcloud Terraform Provider  
-- An existing OVHcloud Public Cloud project  
-- An existing private network and subnet  
-
----
-
-## 🇬🇧 Input Variables
-
-### Required variables
-
-| Name | Description |
-|----|------------|
-| `service_name` | OVHcloud Public Cloud project ID |
-| `valkey_version` | Valkey version |
-| `valkey_plan` | Valkey plan (e.g. production) |
-| `valkey_flavor` | Valkey flavor (e.g. b3-8) |
-| `valkey_disk_size` | Disk size in GB |
-| `valkey_nodes` | List of Valkey nodes |
-
----
-
-### Optional variables
-
-| Name | Type | Default | Description |
-|----|----|----|----|
-| `valkey_description` | `string` | `null` | Database description |
-| `valkey_backup_time` | `string` | `null` | Backup time (HH:MM) |
-| `valkey_backup_regions` | `list(string)` | `null` | Backup regions |
-| `valkey_advanced_configuration` | `map(string)` | `null` | Advanced Valkey configuration |
-| `valkey_deletion_protection` | `bool` | `true` | Enable deletion protection |
-| `valkey_ip_restrictions` | `list(object)` | `null` | IP access restrictions |
-
----
-
-### Valkey Node Object
-
-| Field | Type | Description |
-|----|----|------------|
-| `region` | `string` | OVHcloud region |
-| `network_id` | `string` | Private network ID |
-| `subnet_id` | `string` | Subnet ID |
-
----
-
-### IP Restriction Object
-
-| Field | Type | Description |
-|----|----|------------|
-| `ip` | `string` | Allowed IP or CIDR |
-| `description` | `string` | Optional description |
-
----
-
-## 🇬🇧 Important Validations
-
-This module enforces the following rules:
-
-1. At least one Valkey node must be defined  
-2. Node definitions must include region, network ID, and subnet ID  
-3. Disk size must be a positive integer  
-4. Unsupported or missing configurations are blocked at `terraform plan` time  
-
-These validations ensure predictable and safe deployments.
-
----
-
-## 🇬🇧 Examples of usage
-
-### Single-node Valkey deployment
+### Minimal (public network)
 
 ```hcl
 module "valkey" {
-  source = "./modules/ovh-valkey"
+  source  = "git::https://gitlab.com/theobs-digital/terraform-ovh-valkey.git?ref=v1.0.0"
 
-  service_name               = var.service_name
-  valkey_description         = "Production Valkey cluster"
-  valkey_version             = "8.1"
-  valkey_plan                = "production"
-  valkey_flavor              = "b3-8"
-  valkey_disk_size           = 100
-  valkey_deletion_protection = true
+  service_name   = "your-ovh-project-id"
+  valkey_version = "8.1"
+  valkey_plan    = "essential"
+  valkey_flavor  = "b3-8"
+
+  valkey_nodes = [
+    { region = "GRA" },
+    { region = "GRA" },
+  ]
+
+  create_valkey_users = false
+}
+```
+
+### With vRack (private network) and users
+
+```hcl
+module "valkey" {
+  source  = "git::https://gitlab.com/theobs-digital/terraform-ovh-valkey.git?ref=v1.0.0"
+
+  service_name       = "your-ovh-project-id"
+  valkey_version     = "8.1"
+  valkey_plan        = "business"
+  valkey_flavor      = "b3-8"
+  valkey_description = "Production Valkey cluster"
+  valkey_disk_size   = 100
 
   valkey_nodes = [
     {
@@ -128,13 +54,113 @@ module "valkey" {
       region     = "GRA"
       network_id = "pn-xxxxxx"
       subnet_id  = "subnet-yyyyyy"
-    }
+    },
   ]
 
   valkey_ip_restrictions = [
+    { ip = "10.0.0.0/24", description = "Internal network" },
+  ]
+
+  valkey_users = [
     {
-      ip          = "10.0.0.0/24"
-      description = "Internal network"
-    }
+      name       = "app"
+      categories = ["+@all"]
+      channels   = ["*"]
+      commands   = ["+@all"]
+      keys       = ["*"]
+    },
   ]
 }
+```
+
+See [examples/basic](examples/basic/) and [examples/complete](examples/complete/) for more.
+
+<!-- BEGIN_TF_DOCS -->
+## Requirements
+
+| Name | Version |
+|------|---------|
+| terraform | >= 1.3 |
+| ovh | >= 1.0, < 2.0 |
+
+## Resources
+
+| Name | Type |
+|------|------|
+| `ovh_cloud_project_database.this` | resource |
+| `ovh_cloud_project_database_valkey_user.user` | resource |
+
+## Inputs
+
+### Required
+
+| Name | Description | Type |
+|------|-------------|------|
+| `service_name` | OVH project service name (project ID) | `string` |
+| `valkey_version` | Valkey engine version (format `X.Y`) | `string` |
+| `valkey_plan` | Plan: `essential`, `business`, `enterprise` | `string` |
+| `valkey_flavor` | Flavor (e.g. `b3-8`) | `string` |
+| `valkey_nodes` | List of nodes (min. 2 for HA) | `list(object({region, network_id?, subnet_id?}))` |
+
+### Optional
+
+| Name | Description | Type | Default |
+|------|-------------|------|---------|
+| `valkey_description` | Database description | `string` | `null` |
+| `valkey_disk_size` | Disk size in GB (positive integer) | `number` | `null` |
+| `valkey_deletion_protection` | Enable deletion protection | `bool` | `true` |
+| `valkey_backup_time` | Backup time in `HH:MM` format (UTC) | `string` | `null` |
+| `valkey_backup_regions` | Regions where backups are stored | `list(string)` | `null` |
+| `valkey_advanced_configuration` | Advanced Valkey configuration (key/value) | `map(string)` | `null` |
+| `valkey_ip_restrictions` | IP restrictions for access | `list(object({ip, description?}))` | `null` |
+| `create_valkey_users` | Enable Valkey user creation | `bool` | `true` |
+| `valkey_users` | Users with ACL configuration (names must be unique) | `list(object({name, categories, channels, commands, keys}))` | `[]` |
+
+## Outputs
+
+| Name | Description | Sensitive |
+|------|-------------|-----------|
+| `valkey_id` | Database ID | no |
+| `valkey_engine` | Database engine | no |
+| `valkey_version` | Valkey version | no |
+| `valkey_endpoints` | Connection endpoints | no |
+| `valkey_nodes` | Nodes configuration | no |
+| `valkey_status` | Current database status | no |
+| `valkey_users` | Created users (includes credentials) | **yes** |
+<!-- END_TF_DOCS -->
+
+## Validations
+
+The module enforces the following rules at `terraform plan` time:
+
+| Variable | Rule |
+|----------|------|
+| `valkey_version` | Must match format `X.Y` |
+| `valkey_plan` | Must be `essential`, `business`, or `enterprise` |
+| `valkey_nodes` | Minimum 2 nodes |
+| `valkey_disk_size` | Positive integer when set |
+| `valkey_backup_time` | `HH:MM` format when set |
+| `valkey_users` | Names must be unique |
+
+## Tests
+
+Run the native Terraform tests:
+
+```bash
+terraform test
+```
+
+## Contributing
+
+This module uses [pre-commit](https://pre-commit.com/) hooks for code quality:
+
+```bash
+pre-commit install
+pre-commit run -a
+```
+
+Documentation is auto-generated by [terraform-docs](https://terraform-docs.io/) between the `BEGIN_TF_DOCS` / `END_TF_DOCS` markers.
+
+## License
+
+See [LICENSE](LICENSE) for details.
