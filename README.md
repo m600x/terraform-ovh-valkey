@@ -144,11 +144,32 @@ The module enforces the following rules at `terraform plan` time:
 
 ## Tests
 
-Run the native Terraform tests:
+Native Terraform tests cover **input variable validation** only. They run in a separate root (`tests/variables-only/`) so no OVH API credentials or provider plugins are required—unlike `terraform test` at the module root, which would load `main.tf` and the OVH provider.
+
+That directory contains:
+
+- `main.tf` — minimal `terraform` block (no resources)
+- `variables.tf` — symlink to the repository root `variables.tf` (keeps rules identical)
+- `basic.tftest.hcl` — test runs (defaults, `expect_failures` for invalid inputs)
+
+**Recommended:** from the repository root, run:
 
 ```bash
-terraform test
+make test
 ```
+
+This runs `terraform init -backend=false` and `terraform test` in `tests/variables-only`.
+
+**Manual equivalent:**
+
+```bash
+terraform -chdir=tests/variables-only init -backend=false
+terraform -chdir=tests/variables-only test
+```
+
+**Symlinks:** on systems where Git does not check out symlinks as links, replace `tests/variables-only/variables.tf` with a copy of the root `variables.tf`.
+
+**CI:** use `make test` or the `-chdir=tests/variables-only` commands above. A bare `terraform test` at the module root does not run this suite (it would report zero tests from `tests/*.tftest.hcl` and is not used for variable checks).
 
 ## Contributing
 

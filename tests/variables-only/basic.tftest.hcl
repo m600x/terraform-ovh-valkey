@@ -1,7 +1,3 @@
-provider "ovh" {
-  endpoint = "ovh-eu"
-}
-
 variables {
   service_name   = "test-project-id"
   valkey_version = "8.1"
@@ -15,20 +11,15 @@ variables {
 }
 
 ##############################
-# Valid plan
+# Valid inputs (variable validation only; no OVH resources)
 ##############################
 
-run "plan_basic" {
+run "valid_default_variables" {
   command = plan
 
   assert {
-    condition     = ovh_cloud_project_database.this.engine == "valkey"
-    error_message = "Engine must be valkey."
-  }
-
-  assert {
-    condition     = ovh_cloud_project_database.this.deletion_protection == true
-    error_message = "Deletion protection must be enabled by default."
+    condition     = length(var.valkey_nodes) >= 2
+    error_message = "Default valkey_nodes must satisfy module validation (>= 2 nodes)."
   }
 }
 
@@ -114,7 +105,7 @@ run "reject_duplicate_users" {
         keys       = ["*"]
       },
       {
-        name       = "app-2"
+        name       = "app"
         categories = ["+@all"]
         channels   = ["*"]
         commands   = ["+@read"]
