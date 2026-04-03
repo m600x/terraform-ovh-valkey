@@ -76,19 +76,25 @@ module "valkey" {
 See [examples/basic](examples/basic/) and [examples/complete](examples/complete/) for more.
 
 <!-- BEGIN_TF_DOCS -->
-## Requirements
+### Requirements
 
 | Name | Version |
 |------|---------|
-| terraform | >= 1.3 |
-| ovh | >= 1.0, < 2.0 |
+| <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.3 |
+| <a name="requirement_ovh"></a> [ovh](#requirement\_ovh) | >= 1.0, < 2.0 |
 
-## Resources
+### Providers
+
+| Name | Version |
+|------|---------|
+| <a name="provider_ovh"></a> [ovh](#provider\_ovh) | 1.8.0 |
+
+### Resources
 
 | Name | Type |
 |------|------|
-| `ovh_cloud_project_database.this` | resource |
-| `ovh_cloud_project_database_valkey_user.user` | resource |
+| [ovh_cloud_project_database.this](https://registry.terraform.io/providers/ovh/ovh/latest/docs/resources/cloud_project_database) | resource |
+| [ovh_cloud_project_database_valkey_user.user](https://registry.terraform.io/providers/ovh/ovh/latest/docs/resources/cloud_project_database_valkey_user) | resource |
 
 ## Inputs
 
@@ -97,36 +103,36 @@ See [examples/basic](examples/basic/) and [examples/complete](examples/complete/
 | Name | Description | Type |
 |------|-------------|------|
 | `service_name` | OVH project service name (project ID) | `string` |
-| `valkey_version` | Valkey engine version (format `X.Y`) | `string` |
-| `valkey_plan` | Plan: `essential`, `business`, `enterprise` | `string` |
-| `valkey_flavor` | Flavor (e.g. `b3-8`) | `string` |
-| `valkey_nodes` | List of nodes (min. 2 for HA) | `list(object({region, network_id?, subnet_id?}))` |
+| `valkey_flavor` | Valkey flavor (e.g. b3-8) | `string` |
+| `valkey_nodes` | List of Valkey nodes (minimum 2 for HA) | `list(object({ region = string network_id = optional(string) subnet_id = optional(string) }))` |
+| `valkey_plan` | Valkey plan (essential, business, enterprise) | `string` |
+| `valkey_version` | Valkey engine version (e.g. 7.2, 8.1) | `string` |
 
 ### Optional
 
 | Name | Description | Type | Default |
 |------|-------------|------|---------|
-| `valkey_description` | Database description | `string` | `null` |
-| `valkey_disk_size` | Disk size in GB (positive integer) | `number` | `null` |
+| `create_valkey_users` | Enable or disable Valkey user creation | `bool` | `true` |
+| `valkey_advanced_configuration` | Advanced Valkey configuration (Redis-compatible key/value pairs) | `map(string)` | `null` |
+| `valkey_backup_regions` | List of regions where backups are stored | `list(string)` | `null` |
+| `valkey_backup_time` | Backup time in HH:MM format (UTC) | `string` | `null` |
 | `valkey_deletion_protection` | Enable deletion protection | `bool` | `true` |
-| `valkey_backup_time` | Backup time in `HH:MM` format (UTC) | `string` | `null` |
-| `valkey_backup_regions` | Regions where backups are stored | `list(string)` | `null` |
-| `valkey_advanced_configuration` | Advanced Valkey configuration (key/value) | `map(string)` | `null` |
-| `valkey_ip_restrictions` | IP restrictions for access | `list(object({ip, description?}))` | `null` |
-| `create_valkey_users` | Enable Valkey user creation | `bool` | `true` |
-| `valkey_users` | Users with ACL configuration (names must be unique) | `list(object({name, categories, channels, commands, keys}))` | `[]` |
+| `valkey_description` | Description of the Valkey database | `string` | `null` |
+| `valkey_disk_size` | Disk size in GB (optional, OVH default if null) | `number` | `null` |
+| `valkey_ip_restrictions` | List of IP restrictions for Valkey access | `list(object({ ip = string description = optional(string) }))` | `null` |
+| `valkey_users` | List of Valkey users with ACL configuration | `list(object({ name = string categories = list(string) channels = list(string) commands = list(string) keys = list(string) }))` | `[]` |
 
 ## Outputs
 
 | Name | Description | Sensitive |
 |------|-------------|-----------|
-| `valkey_id` | Database ID | no |
+| `valkey_endpoints` | Valkey endpoints | no |
 | `valkey_engine` | Database engine | no |
+| `valkey_id` | Valkey database ID | no |
+| `valkey_nodes` | Valkey nodes configuration | no |
+| `valkey_status` | Current Valkey database status | no |
+| `valkey_users` | Created Valkey users | **yes** |
 | `valkey_version` | Valkey version | no |
-| `valkey_endpoints` | Connection endpoints | no |
-| `valkey_nodes` | Nodes configuration | no |
-| `valkey_status` | Current database status | no |
-| `valkey_users` | Created users (includes credentials) | **yes** |
 <!-- END_TF_DOCS -->
 
 ## Validations
@@ -171,7 +177,17 @@ terraform -chdir=tests/variables-only test
 
 **CI:** use `make test` or the `-chdir=tests/variables-only` commands above. A bare `terraform test` at the module root does not run this suite (it would report zero tests from `tests/*.tftest.hcl` and is not used for variable checks).
 
+**Validate:** `make validate` runs `terraform validate` in `tests/variables-only/` (same layout as tests—no OVH resources), so it succeeds in CI without credentials. Validating the **module root** (`terraform validate` at the repository root) may fail if the installed `ovh/ovh` version does not yet expose the resources and arguments used in `main.tf`; fix that by upgrading the provider constraint/lockfile when OVH publishes a matching schema.
+
 ## Contributing
+
+Install local tooling on **macOS** (requires [Homebrew](https://brew.sh/)):
+
+```bash
+make install
+```
+
+That installs **tflint**, **terraform-docs**, and **pre-commit**, and runs `tflint --init`. On Linux or without Homebrew, install those tools from your package manager or the upstream links in the [Makefile](Makefile) `install` target, then run `tflint --init` in this repository.
 
 This module uses [pre-commit](https://pre-commit.com/) hooks for code quality:
 
@@ -180,7 +196,15 @@ pre-commit install
 pre-commit run -a
 ```
 
-Documentation is auto-generated by [terraform-docs](https://terraform-docs.io/) between the `BEGIN_TF_DOCS` / `END_TF_DOCS` markers.
+Other Makefile targets:
+
+```bash
+make lint      # terraform fmt -check + tflint
+make validate  # terraform validate in tests/variables-only (see Tests → Validate)
+make docs      # regenerate README between BEGIN_TF_DOCS / END_TF_DOCS
+```
+
+`tflint` and `terraform-docs` must be on your `PATH` for `make lint` and `make docs`. `make validate` only needs Terraform (see **Tests → Validate** above).
 
 ## License
 

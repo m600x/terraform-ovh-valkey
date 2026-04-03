@@ -4,12 +4,46 @@ output:
   file: README.md
   mode: inject
 
+# Custom content (improvement #6): split inputs into Required / Optional so pre-commit and
+# `make docs` stay idempotent with the curated README layout.
+# Outputs: `valkey_users` is marked **yes** via name match because terraform-docs v0.21 does
+# not populate Output.Sensitive from HCL for this module; drop the eq .Name when upstream fixes.
 content: |-
   {{ .Requirements }}
+
   {{ .Providers }}
+
   {{ .Resources }}
-  {{ .Inputs }}
-  {{ .Outputs }}
+
+  ## Inputs
+
+  ### Required
+
+  | Name | Description | Type |
+  |------|-------------|------|
+  {{- range .Module.Inputs }}
+  {{- if .Required }}
+  | `{{ .Name }}` | {{ .Description }} | `{{ trimAll " " (regexReplaceAll "\\s+" (replace "\n" " " (printf "%s" .Type)) " ") }}` |
+  {{- end }}
+  {{- end }}
+
+  ### Optional
+
+  | Name | Description | Type | Default |
+  |------|-------------|------|---------|
+  {{- range .Module.Inputs }}
+  {{- if not .Required }}
+  | `{{ .Name }}` | {{ .Description }} | `{{ trimAll " " (regexReplaceAll "\\s+" (replace "\n" " " (printf "%s" .Type)) " ") }}` | `{{ .GetValue }}` |
+  {{- end }}
+  {{- end }}
+
+  ## Outputs
+
+  | Name | Description | Sensitive |
+  |------|-------------|-----------|
+  {{- range .Module.Outputs }}
+  | `{{ .Name }}` | {{ .Description }} | {{ if or .Sensitive (eq .Name "valkey_users") }}**yes**{{ else }}no{{ end }} |
+  {{- end }}
 
 sort:
   enabled: true
